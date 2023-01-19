@@ -3,7 +3,7 @@ Move to Azure efficiently with customized guidance from Azure engineering. [Fast
 
 # REST Analytics Quickstart
 
-In this repository, we've put together a template Azure Synapse Analytics project designed for data that is available through REST APIs.
+This repository contains a template Azure Synapse Analytics project designed to ingest data that is available through REST APIs.
 
 ## Table of contents
 - [Overview](#overview)
