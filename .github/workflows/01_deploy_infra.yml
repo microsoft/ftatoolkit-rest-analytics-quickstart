@@ -55,8 +55,7 @@ jobs:
       with:
         inlineScript: >
           export CONNECTION_STRING=$(az storage account show-connection-string -g ${{ inputs.resourceGroup }} -n ${{ inputs.namePrefix }}storage --query connectionString -o tsv) &&
-          echo -e "TableStorage_connectionString: $CONNECTION_STRING \n1_OpenAQ_Set_Up_Metadata_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n2_OpenAQ_Incremental_Load_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n3_OpenAQ_Sync_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n4_OpenAQ_Metadata_driven_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n5_OpenAQ_Cleanup_Location_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n6_OpenAQ_Full_Load_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n" >> parameters.yml &&
-          cat parameters.yml
+          echo -e "TableStorage_connectionString: $CONNECTION_STRING \n1_OpenAQ_Set_Up_Metadata_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n2_OpenAQ_Incremental_Load_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n3_OpenAQ_Sync_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n4_OpenAQ_Metadata_driven_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n5_OpenAQ_Cleanup_Location_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n6_OpenAQ_Full_Load_properties_parameters_StorageAccountName_defaultValue: ${{ inputs.namePrefix }}storage \n" >> parameters.yml
     - name: Synapse workspace deployment
       uses: Azure/Synapse-workspace-deployment@V1.7.0
       with:
