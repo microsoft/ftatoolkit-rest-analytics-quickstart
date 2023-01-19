@@ -1,0 +1,2383 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "raqsynapse"
+		},
+		"TableStorage_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'TableStorage'"
+		},
+		"raqsynapse-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'raqsynapse-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:raqsynapse.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"1_OpenAQ_Set_Up_Metadata_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		},
+		"2_OpenAQ_Incremental_Load_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		},
+		"3_OpenAQ_Sync_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		},
+		"4_OpenAQ_Metadata_driven_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		},
+		"5_OpenAQ_Cleanup_Location_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		},
+		"6_OpenAQ_Full_Load_properties_parameters_StorageAccountName_defaultValue": {
+			"type": "string"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/1_Authenticate_and_Copy')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "Pulls credentials from Key Vault and subsequently uses them to authenticate with an API and copy data.",
+				"activities": [
+					{
+						"name": "CopyData",
+						"description": "Copy data by passing token in Authorization header",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Authenticate",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": true
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "JsonSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET",
+									"additionalHeaders": {
+										"value": "Authorization: Bearer @{activity('Authenticate').output.token}",
+										"type": "Expression"
+									},
+									"requestTimeout": ""
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"path": "$['page']"
+										},
+										"sink": {
+											"name": "page"
+										}
+									},
+									{
+										"source": {
+											"path": "$['per_page']"
+										},
+										"sink": {
+											"name": "per_page"
+										}
+									},
+									{
+										"source": {
+											"path": "$['total']"
+										},
+										"sink": {
+											"name": "total"
+										}
+									},
+									{
+										"source": {
+											"path": "$['total_pages']"
+										},
+										"sink": {
+											"name": "total_pages"
+										}
+									},
+									{
+										"source": {
+											"path": "['id']"
+										},
+										"sink": {
+											"name": "id"
+										}
+									},
+									{
+										"source": {
+											"path": "['email']"
+										},
+										"sink": {
+											"name": "email"
+										}
+									},
+									{
+										"source": {
+											"path": "['first_name']"
+										},
+										"sink": {
+											"name": "first_name"
+										}
+									},
+									{
+										"source": {
+											"path": "['last_name']"
+										},
+										"sink": {
+											"name": "last_name"
+										}
+									},
+									{
+										"source": {
+											"path": "['avatar']"
+										},
+										"sink": {
+											"name": "avatar"
+										}
+									},
+									{
+										"source": {
+											"path": "$['support']['url']"
+										},
+										"sink": {
+											"name": "url"
+										}
+									},
+									{
+										"source": {
+											"path": "$['support']['text']"
+										},
+										"sink": {
+											"name": "text"
+										}
+									}
+								],
+								"collectionReference": "$['data']"
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "SampleHTTPResource",
+								"type": "DatasetReference",
+								"parameters": {
+									"ResourceID": {
+										"value": "@pipeline().parameters.ResourceID",
+										"type": "Expression"
+									},
+									"Parameter": {
+										"value": "@pipeline().parameters.Parameter",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "SampleDatalakeResource",
+								"type": "DatasetReference",
+								"parameters": {
+									"ResourceID": {
+										"value": "@pipeline().parameters.ResourceID",
+										"type": "Expression"
+									}
+								}
+							}
+						]
+					},
+					{
+						"name": "Authenticate",
+						"description": "Web activity to log in to the API",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Get API Key",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": true,
+							"secureInput": true
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": "https://reqres.in/api/login",
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "POST",
+							"headers": {},
+							"body": {
+								"value": "{\n    \"apikey\": \"@{activity('Get API Key').output.value}\"\n}",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Get API Key",
+						"description": "Web activity to get API Key from Key Vault.\n",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": true,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": "https://samplekeyvault.vault.azure.net/secrets/UsernameSecretName?api-version=7.3",
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "GET",
+							"headers": {},
+							"body": "",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"ResourceID": {
+						"type": "String"
+					},
+					"Parameter": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "Templates"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T14:57:43Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/SampleHTTPResource')]",
+				"[concat(variables('workspaceId'), '/datasets/SampleDatalakeResource')]",
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/1_OpenAQ_Set_Up_Metadata')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "Set up metadata table and handle exceptions",
+				"activities": [
+					{
+						"name": "Create Metadata Table",
+						"description": "Create Jobs table in storage account",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Check table exists",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "https://@{pipeline().parameters.StorageAccountName}.table.core.windows.net/Tables",
+								"type": "Expression"
+							},
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "POST",
+							"headers": {
+								"x-ms-version": "2017-11-09",
+								"Accept": "application/json"
+							},
+							"body": {
+								"value": "{\"TableName\":\"@{pipeline().parameters.TableName}\"}",
+								"type": "Expression"
+							},
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://storage.azure.com/"
+							}
+						}
+					},
+					{
+						"name": "Check table exists",
+						"description": "Create Jobs table in storage account",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "https://@{pipeline().parameters.StorageAccountName}.table.core.windows.net/@{pipeline().parameters.TableName}",
+								"type": "Expression"
+							},
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "GET",
+							"headers": {
+								"x-ms-version": "2017-11-09",
+								"Accept": "application/json"
+							},
+							"body": "",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://storage.azure.com/"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					},
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('1_OpenAQ_Set_Up_Metadata_properties_parameters_StorageAccountName_defaultValue')]"
+					}
+				},
+				"variables": {
+					"fii": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/2_Cookie_Authentication')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "Same as 1, but uses an HTTP resource instead of REST to leverage Cookie header for authentication.",
+				"activities": [
+					{
+						"name": "CopyData",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Authenticate",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": true
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "JsonSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET",
+									"additionalHeaders": {
+										"value": "Cookie: @{activity('Authenticate').output.ADFWebActivityResponseHeaders['Set-Cookie']}",
+										"type": "Expression"
+									},
+									"requestTimeout": ""
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"path": "$['data'][0]['id']"
+										},
+										"sink": {
+											"name": "id",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['data'][0]['email']"
+										},
+										"sink": {
+											"name": "email",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['data'][0]['first_name']"
+										},
+										"sink": {
+											"name": "first_name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['data'][0]['last_name']"
+										},
+										"sink": {
+											"name": "last_name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['data'][0]['avatar']"
+										},
+										"sink": {
+											"name": "avatar",
+											"type": "String"
+										}
+									}
+								],
+								"collectionReference": "$['data']"
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "SampleHTTPResource",
+								"type": "DatasetReference",
+								"parameters": {
+									"ResourceID": {
+										"value": "@pipeline().parameters.ResourceID",
+										"type": "Expression"
+									},
+									"Parameter": {
+										"value": "@pipeline().parameters.Parameter",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "SampleDatalakeResource",
+								"type": "DatasetReference",
+								"parameters": {
+									"ResourceID": {
+										"value": "@pipeline().parameters.ResourceID",
+										"type": "Expression"
+									}
+								}
+							}
+						]
+					},
+					{
+						"name": "Get API Key",
+						"description": "Web activity to get API Key from Key Vault.\n",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": true,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": "https://samplekeyvault.vault.azure.net/secrets/UsernameSecretName?api-version=7.3",
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "GET",
+							"headers": {},
+							"body": "",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "Authenticate",
+						"description": "Web activity to log in to the API",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Get API Key",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": true,
+							"secureInput": true
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": "https://reqres.in/api/login",
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "POST",
+							"headers": {},
+							"body": {
+								"value": "{\n    \"apikey\": \"@{activity('Get API Key').output.value}\"\n}",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"ResourceID": {
+						"type": "String"
+					},
+					"Parameter": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "Templates"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T14:57:48Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/SampleHTTPResource')]",
+				"[concat(variables('workspaceId'), '/datasets/SampleDatalakeResource')]",
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/2_OpenAQ_Incremental_Load')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Update Start Date",
+						"description": "Update table storage with new start date",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "CopyData",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "https://@{pipeline().parameters.StorageAccountName}.table.core.windows.net/Jobs(PartitionKey='@{pipeline().parameters.LocationID}',RowKey='@{pipeline().parameters.LocationID}')",
+								"type": "Expression"
+							},
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "PUT",
+							"headers": {
+								"x-ms-version": "2017-11-09",
+								"Accept": "application/json"
+							},
+							"body": {
+								"value": "{\n   \"MaxDate\": \"@{variables('ToDate')}\"\n}",
+								"type": "Expression"
+							},
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://storage.azure.com/"
+							}
+						}
+					},
+					{
+						"name": "Get Start Date",
+						"description": "Retrieve start date for this round of incremental load from Table Storage",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureTableSource",
+								"azureTableSourceQuery": {
+									"value": "PartitionKey eq '@{pipeline().parameters.LocationID}' and RowKey eq '@{pipeline().parameters.LocationID}'",
+									"type": "Expression"
+								},
+								"azureTableSourceIgnoreTableNotFound": false
+							},
+							"dataset": {
+								"referenceName": "ETLJobsTable",
+								"type": "DatasetReference",
+								"parameters": {
+									"TableName": {
+										"value": "@pipeline().parameters.TableName",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					},
+					{
+						"name": "Set From Date",
+						"description": "Set variable for window start date. If it doesn't exist, use the MinDate parameter",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Get Start Date",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "FromDate",
+							"value": {
+								"value": "@coalesce(\n    activity('Get Start Date').output?.firstRow?.MaxDate, \n    pipeline().parameters.MinDate\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "CopyData",
+						"description": "Copy data in window from source to Data Lake",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Cancel if loading past limit",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "JsonSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET",
+									"requestTimeout": ""
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"path": "$['meta']['name']"
+										},
+										"sink": {
+											"name": "name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['meta']['license']"
+										},
+										"sink": {
+											"name": "license",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['meta']['website']"
+										},
+										"sink": {
+											"name": "website",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['meta']['page']"
+										},
+										"sink": {
+											"name": "page",
+											"type": "Int32"
+										}
+									},
+									{
+										"source": {
+											"path": "$['meta']['limit']"
+										},
+										"sink": {
+											"name": "limit",
+											"type": "Int32"
+										}
+									},
+									{
+										"source": {
+											"path": "$['meta']['found']"
+										},
+										"sink": {
+											"name": "found",
+											"type": "Int64"
+										}
+									},
+									{
+										"source": {
+											"path": "['locationId']"
+										},
+										"sink": {
+											"name": "locationId",
+											"type": "Int32"
+										}
+									},
+									{
+										"source": {
+											"path": "['location']"
+										},
+										"sink": {
+											"name": "location",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['parameter']"
+										},
+										"sink": {
+											"name": "parameter",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['value']"
+										},
+										"sink": {
+											"name": "value",
+											"type": "Double"
+										}
+									},
+									{
+										"source": {
+											"path": "['date']['utc']"
+										},
+										"sink": {
+											"name": "utc",
+											"type": "DateTime"
+										}
+									},
+									{
+										"source": {
+											"path": "['date']['local']"
+										},
+										"sink": {
+											"name": "local",
+											"type": "DateTime"
+										}
+									},
+									{
+										"source": {
+											"path": "['unit']"
+										},
+										"sink": {
+											"name": "unit",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['coordinates']['latitude']"
+										},
+										"sink": {
+											"name": "latitude",
+											"type": "Double"
+										}
+									},
+									{
+										"source": {
+											"path": "['coordinates']['longitude']"
+										},
+										"sink": {
+											"name": "longitude",
+											"type": "Double"
+										}
+									},
+									{
+										"source": {
+											"path": "['country']"
+										},
+										"sink": {
+											"name": "country",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['city']"
+										},
+										"sink": {
+											"name": "city",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['isMobile']"
+										},
+										"sink": {
+											"name": "isMobile",
+											"type": "Boolean"
+										}
+									},
+									{
+										"source": {
+											"path": "['isAnalysis']"
+										},
+										"sink": {
+											"name": "isAnalysis",
+											"type": "Boolean"
+										}
+									},
+									{
+										"source": {
+											"path": "['entity']"
+										},
+										"sink": {
+											"name": "entity",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "['sensorType']"
+										},
+										"sink": {
+											"name": "sensorType",
+											"type": "String"
+										}
+									}
+								],
+								"collectionReference": "$['results']"
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "OpenAQMeasurements",
+								"type": "DatasetReference",
+								"parameters": {
+									"date_from": {
+										"value": "@variables('FromDate')",
+										"type": "Expression"
+									},
+									"date_to": {
+										"value": "@variables('ToDate')",
+										"type": "Expression"
+									},
+									"limit": 100000,
+									"location_id": {
+										"value": "@pipeline().parameters.LocationID",
+										"type": "Expression"
+									},
+									"page": "1"
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "OpenAQMeasurementsDatalake",
+								"type": "DatasetReference",
+								"parameters": {
+									"manufacturer": {
+										"value": "@pipeline().parameters.Manufacturer",
+										"type": "Expression"
+									},
+									"locationID": {
+										"value": "@pipeline().parameters.LocationID",
+										"type": "Expression"
+									},
+									"year": {
+										"value": "@formatDateTime(variables('FromDate'), 'yyyy')",
+										"type": "Expression"
+									},
+									"month": {
+										"value": "@formatDateTime(variables('FromDate'), 'MM')",
+										"type": "Expression"
+									},
+									"day": {
+										"value": "@formatDateTime(variables('FromDate'), 'dd')",
+										"type": "Expression"
+									}
+								}
+							}
+						]
+					},
+					{
+						"name": "Calculate To Date",
+						"description": "Set variable for window end date by adding the time delta defined.",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Set From Date",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "ToDate",
+							"value": {
+								"value": "@addToTime(\n    variables('FromDate'), \n    pipeline().parameters.DeltaMinutes,\n    'minute'\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Cancel if loading past limit",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "Calculate To Date",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@greater(\n    ticks(variables('ToDate')),\n    ticks(pipeline().parameters.MaxDate) \n)",
+								"type": "Expression"
+							},
+							"ifTrueActivities": [
+								{
+									"name": "Cancel",
+									"type": "Fail",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"message": "Targeted time window out of bounds",
+										"errorCode": "400"
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"LocationID": {
+						"type": "string",
+						"defaultValue": "232441"
+					},
+					"Manufacturer": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"MinDate": {
+						"type": "string",
+						"defaultValue": "2022-01-01"
+					},
+					"MaxDate": {
+						"type": "string",
+						"defaultValue": "2022-01-05"
+					},
+					"DeltaMinutes": {
+						"type": "int",
+						"defaultValue": 1440
+					},
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('2_OpenAQ_Incremental_Load_properties_parameters_StorageAccountName_defaultValue')]"
+					},
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					}
+				},
+				"variables": {
+					"FromDate": {
+						"type": "String"
+					},
+					"ToDate": {
+						"type": "String"
+					},
+					"fii": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T15:00:28Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
+				"[concat(variables('workspaceId'), '/datasets/ETLJobsTable')]",
+				"[concat(variables('workspaceId'), '/datasets/OpenAQMeasurements')]",
+				"[concat(variables('workspaceId'), '/datasets/OpenAQMeasurementsDatalake')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/3_OpenAQ_Sync')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Load until present",
+						"type": "Until",
+						"dependsOn": [
+							{
+								"activity": "Set Up Metadata",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@equals(activity('Incremental Load').StatusCode, 400)",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "Incremental Load",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "2_OpenAQ_Incremental_Load",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"LocationID": {
+												"value": "@pipeline().parameters.LocationID",
+												"type": "Expression"
+											},
+											"Manufacturer": {
+												"value": "@pipeline().parameters.Manufacturer",
+												"type": "Expression"
+											},
+											"MinDate": {
+												"value": "@pipeline().parameters.MinDate",
+												"type": "Expression"
+											},
+											"MaxDate": {
+												"value": "@pipeline().parameters.MaxDate",
+												"type": "Expression"
+											},
+											"DeltaMinutes": {
+												"value": "@pipeline().parameters.DeltaMinutes",
+												"type": "Expression"
+											},
+											"StorageAccountName": {
+												"value": "@pipeline().parameters.StorageAccountName",
+												"type": "Expression"
+											},
+											"TableName": {
+												"value": "@pipeline().parameters.TableName",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "Debug Activity",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Incremental Load",
+											"dependencyConditions": [
+												"Completed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "Debug",
+										"value": {
+											"value": "@string(activity('Incremental Load'))",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"timeout": "0.12:00:00"
+						}
+					},
+					{
+						"name": "Set Up Metadata",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "1_OpenAQ_Set_Up_Metadata",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"TableName": {
+									"value": "@pipeline().parameters.TableName",
+									"type": "Expression"
+								},
+								"StorageAccountName": {
+									"value": "@pipeline().parameters.StorageAccountName",
+									"type": "Expression"
+								}
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"LocationID": {
+						"type": "string",
+						"defaultValue": "232441"
+					},
+					"Manufacturer": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"DeltaMinutes": {
+						"type": "int",
+						"defaultValue": 1440
+					},
+					"MinDate": {
+						"type": "string",
+						"defaultValue": "2022-01-01"
+					},
+					"MaxDate": {
+						"type": "string",
+						"defaultValue": "2022-01-05"
+					},
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					},
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('3_OpenAQ_Sync_properties_parameters_StorageAccountName_defaultValue')]"
+					}
+				},
+				"variables": {
+					"FromDate": {
+						"type": "String"
+					},
+					"ToDate": {
+						"type": "String"
+					},
+					"Debug": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T15:00:28Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/1_OpenAQ_Set_Up_Metadata')]",
+				"[concat(variables('workspaceId'), '/pipelines/2_OpenAQ_Incremental_Load')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/4_OpenAQ_Metadata_driven')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Copy Each Location",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Get Locations",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Get Locations').output.firstRow.results",
+								"type": "Expression"
+							},
+							"isSequential": false,
+							"activities": [
+								{
+									"name": "Copy Location",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "3_OpenAQ_Sync",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"LocationID": {
+												"value": "@item().id",
+												"type": "Expression"
+											},
+											"Manufacturer": {
+												"value": "@pipeline().parameters.Manufacturer",
+												"type": "Expression"
+											},
+											"DeltaMinutes": {
+												"value": "@pipeline().parameters.DeltaTime",
+												"type": "Expression"
+											},
+											"MinDate": {
+												"value": "@pipeline().parameters.MinDate",
+												"type": "Expression"
+											},
+											"MaxDate": {
+												"value": "@pipeline().parameters.MaxDate",
+												"type": "Expression"
+											},
+											"TableName": {
+												"value": "@pipeline().parameters.TableName",
+												"type": "Expression"
+											},
+											"StorageAccountName": {
+												"value": "@pipeline().parameters.StorageAccountName",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "Get Locations",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "JsonSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET"
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							},
+							"dataset": {
+								"referenceName": "OpenAQLocations",
+								"type": "DatasetReference",
+								"parameters": {
+									"limit": "20",
+									"page": "1",
+									"sort": "asc",
+									"order_by": "location",
+									"sourceName": "purpleair",
+									"country": "CA"
+								}
+							},
+							"firstRowOnly": true
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('4_OpenAQ_Metadata_driven_properties_parameters_StorageAccountName_defaultValue')]"
+					},
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					},
+					"MinDate": {
+						"type": "string",
+						"defaultValue": "2022-01-01"
+					},
+					"MaxDate": {
+						"type": "string",
+						"defaultValue": "2022-01-15"
+					},
+					"Manufacturer": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"DeltaTime": {
+						"type": "int",
+						"defaultValue": 1440
+					}
+				},
+				"variables": {
+					"FromDate": {
+						"type": "String"
+					},
+					"ToDate": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T15:03:44Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/OpenAQLocations')]",
+				"[concat(variables('workspaceId'), '/pipelines/3_OpenAQ_Sync')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/5_OpenAQ_Cleanup_Location')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "Deletes data and metadata associated with a location in order to issue a full load",
+				"activities": [
+					{
+						"name": "Reset Metadata",
+						"description": "Create Jobs table in storage account",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"url": {
+								"value": "https://@{pipeline().parameters.StorageAccountName}.table.core.windows.net/Jobs(PartitionKey='@{pipeline().parameters.LocationID}',RowKey='@{pipeline().parameters.LocationID}')",
+								"type": "Expression"
+							},
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							},
+							"method": "DELETE",
+							"headers": {
+								"x-ms-version": "2017-11-09",
+								"Accept": "application/json",
+								"If-Match": "*"
+							},
+							"body": "",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://storage.azure.com/"
+							}
+						}
+					},
+					{
+						"name": "Delete Blobs",
+						"type": "Delete",
+						"dependsOn": [
+							{
+								"activity": "Reset Metadata",
+								"dependencyConditions": [
+									"Completed"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "OpenAQMeasurementsDatalake",
+								"type": "DatasetReference",
+								"parameters": {
+									"manufacturer": {
+										"value": "@pipeline().parameters.Manufacturer",
+										"type": "Expression"
+									},
+									"locationID": {
+										"value": "@pipeline().parameters.LocationID",
+										"type": "Expression"
+									},
+									"year": "*",
+									"month": "*",
+									"day": "*"
+								}
+							},
+							"enableLogging": false,
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('5_OpenAQ_Cleanup_Location_properties_parameters_StorageAccountName_defaultValue')]"
+					},
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					},
+					"Manufacturer": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"LocationID": {
+						"type": "string",
+						"defaultValue": "232441"
+					}
+				},
+				"variables": {
+					"Debug": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
+				"[concat(variables('workspaceId'), '/datasets/OpenAQMeasurementsDatalake')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/6_OpenAQ_Full_Load')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Sync",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "Clean Up",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "3_OpenAQ_Sync",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"LocationID": {
+									"value": "@pipeline().parameters.LocationID",
+									"type": "Expression"
+								},
+								"Manufacturer": {
+									"value": "@pipeline().parameters.Manufacturer",
+									"type": "Expression"
+								},
+								"DeltaMinutes": {
+									"value": "@pipeline().parameters.DeltaMinutes",
+									"type": "Expression"
+								},
+								"MinDate": {
+									"value": "@pipeline().parameters.MinDate",
+									"type": "Expression"
+								},
+								"MaxDate": {
+									"value": "@pipeline().parameters.MaxDate",
+									"type": "Expression"
+								},
+								"TableName": {
+									"value": "@pipeline().parameters.TableName",
+									"type": "Expression"
+								},
+								"StorageAccountName": {
+									"value": "@pipeline().parameters.StorageAccountName",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "Clean Up",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "5_OpenAQ_Cleanup_Location",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"StorageAccountName": {
+									"value": "@pipeline().parameters.StorageAccountName",
+									"type": "Expression"
+								},
+								"TableName": {
+									"value": "@pipeline().parameters.TableName",
+									"type": "Expression"
+								},
+								"Manufacturer": {
+									"value": "@pipeline().parameters.Manufacturer",
+									"type": "Expression"
+								},
+								"LocationID": {
+									"value": "@pipeline().parameters.LocationID",
+									"type": "Expression"
+								}
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"parameters": {
+					"LocationID": {
+						"type": "string",
+						"defaultValue": "232441"
+					},
+					"Manufacturer": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"DeltaMinutes": {
+						"type": "int",
+						"defaultValue": 1440
+					},
+					"MinDate": {
+						"type": "string",
+						"defaultValue": "2022-01-01"
+					},
+					"StorageAccountName": {
+						"type": "string",
+						"defaultValue": "[parameters('6_OpenAQ_Full_Load_properties_parameters_StorageAccountName_defaultValue')]"
+					},
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					},
+					"MaxDate": {
+						"type": "string",
+						"defaultValue": "2022-01-05"
+					}
+				},
+				"variables": {
+					"FromDate": {
+						"type": "String"
+					},
+					"ToDate": {
+						"type": "String"
+					},
+					"Debug": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-12-26T15:00:28Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/3_OpenAQ_Sync')]",
+				"[concat(variables('workspaceId'), '/pipelines/5_OpenAQ_Cleanup_Location')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ETLJobsTable')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "TableStorage",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"TableName": {
+						"type": "string",
+						"defaultValue": "Jobs"
+					}
+				},
+				"annotations": [],
+				"type": "AzureTable",
+				"schema": [],
+				"typeProperties": {
+					"tableName": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/TableStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/OpenAQLocations')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "OpenAQAPI",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"limit": {
+						"type": "string",
+						"defaultValue": "5"
+					},
+					"page": {
+						"type": "string",
+						"defaultValue": "1"
+					},
+					"sort": {
+						"type": "string",
+						"defaultValue": "asc"
+					},
+					"order_by": {
+						"type": "string",
+						"defaultValue": "location"
+					},
+					"sourceName": {
+						"type": "string",
+						"defaultValue": "purpleair"
+					},
+					"country": {
+						"type": "string",
+						"defaultValue": "US"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation",
+						"relativeUrl": {
+							"value": "/v2/locations?limit=@{dataset().limit}&sort=@{dataset().sort}&order_by=@{dataset().order_by}&sourceName=@{dataset().sourceName}&country=@{dataset().country}",
+							"type": "Expression"
+						}
+					}
+				},
+				"schema": {
+					"type": "object",
+					"properties": {
+						"meta": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"license": {
+									"type": "string"
+								},
+								"website": {
+									"type": "string"
+								},
+								"page": {
+									"type": "integer"
+								},
+								"limit": {
+									"type": "integer"
+								},
+								"found": {
+									"type": "integer"
+								}
+							}
+						},
+						"results": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "integer"
+									},
+									"city": {
+										"type": "null"
+									},
+									"name": {
+										"type": "string"
+									},
+									"entity": {
+										"type": "string"
+									},
+									"country": {
+										"type": "string"
+									},
+									"sources": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"properties": {
+												"url": {
+													"type": "string"
+												},
+												"name": {
+													"type": "string"
+												},
+												"id": {
+													"type": "string"
+												},
+												"readme": {
+													"type": "null"
+												},
+												"organization": {
+													"type": "null"
+												},
+												"lifecycle_stage": {
+													"type": "null"
+												}
+											}
+										}
+									},
+									"isMobile": {
+										"type": "boolean"
+									},
+									"isAnalysis": {
+										"type": "boolean"
+									},
+									"parameters": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"properties": {
+												"id": {
+													"type": "integer"
+												},
+												"unit": {
+													"type": "string"
+												},
+												"count": {
+													"type": "integer"
+												},
+												"average": {
+													"type": "number"
+												},
+												"lastValue": {
+													"type": "number"
+												},
+												"parameter": {
+													"type": "string"
+												},
+												"displayName": {
+													"type": "string"
+												},
+												"lastUpdated": {
+													"type": "string"
+												},
+												"parameterId": {
+													"type": "integer"
+												},
+												"firstUpdated": {
+													"type": "string"
+												},
+												"manufacturers": {
+													"type": "null"
+												}
+											}
+										}
+									},
+									"sensorType": {
+										"type": "string"
+									},
+									"coordinates": {
+										"type": "object",
+										"properties": {
+											"latitude": {
+												"type": "number"
+											},
+											"longitude": {
+												"type": "number"
+											}
+										}
+									},
+									"lastUpdated": {
+										"type": "string"
+									},
+									"firstUpdated": {
+										"type": "string"
+									},
+									"measurements": {
+										"type": "integer"
+									},
+									"bounds": {
+										"type": "null"
+									},
+									"manufacturers": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/OpenAQAPI')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/OpenAQMeasurements')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "OpenAQAPI",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"date_from": {
+						"type": "string",
+						"defaultValue": "2020-01-01"
+					},
+					"date_to": {
+						"type": "string",
+						"defaultValue": "2020-01-02"
+					},
+					"limit": {
+						"type": "int",
+						"defaultValue": 100
+					},
+					"location_id": {
+						"type": "string",
+						"defaultValue": "355599"
+					},
+					"page": {
+						"type": "string",
+						"defaultValue": "1"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation",
+						"relativeUrl": {
+							"value": "/v2/measurements?date_from=@{dataset().date_from}&date_to=@{dataset().date_to}&limit=@{dataset().limit}&page=@{dataset().page}&location_id=@{dataset().location_id}",
+							"type": "Expression"
+						}
+					}
+				},
+				"schema": {
+					"type": "object",
+					"properties": {
+						"meta": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"license": {
+									"type": "string"
+								},
+								"website": {
+									"type": "string"
+								},
+								"page": {
+									"type": "integer"
+								},
+								"limit": {
+									"type": "integer"
+								},
+								"found": {
+									"type": "integer"
+								}
+							}
+						},
+						"results": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"locationId": {
+										"type": "integer"
+									},
+									"location": {
+										"type": "string"
+									},
+									"parameter": {
+										"type": "string"
+									},
+									"value": {
+										"type": "number"
+									},
+									"date": {
+										"type": "object",
+										"properties": {
+											"utc": {
+												"type": "string"
+											},
+											"local": {
+												"type": "string"
+											}
+										}
+									},
+									"unit": {
+										"type": "string"
+									},
+									"coordinates": {
+										"type": "object",
+										"properties": {
+											"latitude": {
+												"type": "number"
+											},
+											"longitude": {
+												"type": "number"
+											}
+										}
+									},
+									"country": {
+										"type": "string"
+									},
+									"city": {
+										"type": "null"
+									},
+									"isMobile": {
+										"type": "boolean"
+									},
+									"isAnalysis": {
+										"type": "null"
+									},
+									"entity": {
+										"type": "string"
+									},
+									"sensorType": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/OpenAQAPI')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/OpenAQMeasurementsDatalake')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "raqsynapse-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"manufacturer": {
+						"type": "string"
+					},
+					"locationID": {
+						"type": "string"
+					},
+					"year": {
+						"type": "String"
+					},
+					"month": {
+						"type": "String"
+					},
+					"day": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "OpenAQ"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "measurements.parquet",
+						"folderPath": {
+							"value": "raw/@{dataset().manufacturer}/@{dataset().locationID}/year=@{dataset().year}/month=@{dataset().month}/day=@{dataset().day}",
+							"type": "Expression"
+						},
+						"fileSystem": "data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/raqsynapse-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SampleDatalakeResource')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "raqsynapse-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"ResourceID": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "0-Basic"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "Resources/@{dataset().ResourceID}",
+							"type": "Expression"
+						},
+						"fileSystem": "raw"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/raqsynapse-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SampleHTTPResource')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "SampleHTTPServer",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"ResourceID": {
+						"type": "String"
+					},
+					"Parameter": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "0-Basic"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation",
+						"relativeUrl": {
+							"value": "/resources/@{dataset().ResourceID}?parameter=@{dataset().Parameter}",
+							"type": "Expression"
+						}
+					}
+				},
+				"schema": {}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/SampleHTTPServer')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/OpenAQAPI')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "HttpServer",
+				"typeProperties": {
+					"url": "https://api.openaq.org",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SampleHTTPServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "HttpServer",
+				"typeProperties": {
+					"url": "https://reqres.in",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/TableStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureTableStorage",
+				"typeProperties": {
+					"connectionString": {
+						"type": "SecureString",
+						"value": "[parameters('TableStorage_connectionString')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/raqsynapse-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": {
+						"type": "SecureString",
+						"value": "[parameters('raqsynapse-WorkspaceDefaultSqlServer_connectionString')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/raqsynapse-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "https://raqstorage.dfs.core.windows.net"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		}
+	]
+}

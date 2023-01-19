@@ -1,0 +1,33 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"value": "raqsynapse"
+		},
+		"TableStorage_connectionString": {
+			"value": ""
+		},
+		"raqsynapse-WorkspaceDefaultSqlServer_connectionString": {
+			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:raqsynapse.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"1_OpenAQ_Set_Up_Metadata_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		},
+		"2_OpenAQ_Incremental_Load_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		},
+		"3_OpenAQ_Sync_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		},
+		"4_OpenAQ_Metadata_driven_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		},
+		"5_OpenAQ_Cleanup_Location_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		},
+		"6_OpenAQ_Full_Load_properties_parameters_StorageAccountName_defaultValue": {
+			"value": ""
+		}
+	}
+}
