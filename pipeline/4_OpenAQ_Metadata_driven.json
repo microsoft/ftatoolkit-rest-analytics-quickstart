@@ -1,0 +1,150 @@
+{
+	"name": "4_OpenAQ_Metadata_driven",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy Each Location",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get Locations",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get Locations').output.firstRow.results",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"activities": [
+						{
+							"name": "Copy Location",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "3_OpenAQ_Sync",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"LocationID": {
+										"value": "@item().id",
+										"type": "Expression"
+									},
+									"Manufacturer": {
+										"value": "@pipeline().parameters.Manufacturer",
+										"type": "Expression"
+									},
+									"DeltaMinutes": {
+										"value": "@pipeline().parameters.DeltaTime",
+										"type": "Expression"
+									},
+									"MinDate": {
+										"value": "@pipeline().parameters.MinDate",
+										"type": "Expression"
+									},
+									"MaxDate": {
+										"value": "@pipeline().parameters.MaxDate",
+										"type": "Expression"
+									},
+									"TableName": {
+										"value": "@pipeline().parameters.TableName",
+										"type": "Expression"
+									},
+									"StorageAccountName": {
+										"value": "@pipeline().parameters.StorageAccountName",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get Locations",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "JsonSource",
+						"storeSettings": {
+							"type": "HttpReadSettings",
+							"requestMethod": "GET"
+						},
+						"formatSettings": {
+							"type": "JsonReadSettings"
+						}
+					},
+					"dataset": {
+						"referenceName": "OpenAQLocations",
+						"type": "DatasetReference",
+						"parameters": {
+							"limit": "20",
+							"page": "1",
+							"sort": "asc",
+							"order_by": "location",
+							"sourceName": "purpleair",
+							"country": "CA"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"StorageAccountName": {
+				"type": "string",
+				"defaultValue": "raqstorage"
+			},
+			"TableName": {
+				"type": "string",
+				"defaultValue": "Jobs"
+			},
+			"MinDate": {
+				"type": "string",
+				"defaultValue": "2022-01-01"
+			},
+			"MaxDate": {
+				"type": "string",
+				"defaultValue": "2022-01-15"
+			},
+			"Manufacturer": {
+				"type": "string",
+				"defaultValue": "purpleair"
+			},
+			"DeltaTime": {
+				"type": "int",
+				"defaultValue": 1440
+			}
+		},
+		"variables": {
+			"FromDate": {
+				"type": "String"
+			},
+			"ToDate": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "OpenAQ"
+		},
+		"annotations": [],
+		"lastPublishTime": "2022-12-26T15:03:44Z"
+	},
+	"type": "Microsoft.Synapse/workspaces/pipelines"
+}

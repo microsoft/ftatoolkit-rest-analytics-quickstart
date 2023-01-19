@@ -1,0 +1,11 @@
+{
+    "Microsoft.Synapse/workspaces/pipelines": {
+        "properties": {
+            "parameters": {
+                "StorageAccountName": {
+                    "defaultValue": "-"
+                }
+            }
+        }
+    }
+}

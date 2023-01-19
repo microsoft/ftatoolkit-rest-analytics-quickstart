@@ -1,0 +1,45 @@
+{
+	"name": "OpenAQMeasurementsDatalake",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "raqsynapse-WorkspaceDefaultStorage",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"manufacturer": {
+				"type": "string"
+			},
+			"locationID": {
+				"type": "string"
+			},
+			"year": {
+				"type": "String"
+			},
+			"month": {
+				"type": "String"
+			},
+			"day": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "OpenAQ"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "measurements.parquet",
+				"folderPath": {
+					"value": "raw/@{dataset().manufacturer}/@{dataset().locationID}/year=@{dataset().year}/month=@{dataset().month}/day=@{dataset().day}",
+					"type": "Expression"
+				},
+				"fileSystem": "data"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}

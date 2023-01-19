@@ -1,0 +1,33 @@
+{
+	"name": "SampleHTTPResource",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "SampleHTTPServer",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"ResourceID": {
+				"type": "String"
+			},
+			"Parameter": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "0-Basic"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": {
+					"value": "/resources/@{dataset().ResourceID}?parameter=@{dataset().Parameter}",
+					"type": "Expression"
+				}
+			}
+		},
+		"schema": {}
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}

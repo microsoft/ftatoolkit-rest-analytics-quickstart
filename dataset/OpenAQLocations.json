@@ -1,0 +1,203 @@
+{
+	"name": "OpenAQLocations",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "OpenAQAPI",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"limit": {
+				"type": "string",
+				"defaultValue": "5"
+			},
+			"page": {
+				"type": "string",
+				"defaultValue": "1"
+			},
+			"sort": {
+				"type": "string",
+				"defaultValue": "asc"
+			},
+			"order_by": {
+				"type": "string",
+				"defaultValue": "location"
+			},
+			"sourceName": {
+				"type": "string",
+				"defaultValue": "purpleair"
+			},
+			"country": {
+				"type": "string",
+				"defaultValue": "US"
+			}
+		},
+		"folder": {
+			"name": "OpenAQ"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": {
+					"value": "/v2/locations?limit=@{dataset().limit}&sort=@{dataset().sort}&order_by=@{dataset().order_by}&sourceName=@{dataset().sourceName}&country=@{dataset().country}",
+					"type": "Expression"
+				}
+			}
+		},
+		"schema": {
+			"type": "object",
+			"properties": {
+				"meta": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"license": {
+							"type": "string"
+						},
+						"website": {
+							"type": "string"
+						},
+						"page": {
+							"type": "integer"
+						},
+						"limit": {
+							"type": "integer"
+						},
+						"found": {
+							"type": "integer"
+						}
+					}
+				},
+				"results": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "integer"
+							},
+							"city": {
+								"type": "null"
+							},
+							"name": {
+								"type": "string"
+							},
+							"entity": {
+								"type": "string"
+							},
+							"country": {
+								"type": "string"
+							},
+							"sources": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"url": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
+										"id": {
+											"type": "string"
+										},
+										"readme": {
+											"type": "null"
+										},
+										"organization": {
+											"type": "null"
+										},
+										"lifecycle_stage": {
+											"type": "null"
+										}
+									}
+								}
+							},
+							"isMobile": {
+								"type": "boolean"
+							},
+							"isAnalysis": {
+								"type": "boolean"
+							},
+							"parameters": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"id": {
+											"type": "integer"
+										},
+										"unit": {
+											"type": "string"
+										},
+										"count": {
+											"type": "integer"
+										},
+										"average": {
+											"type": "number"
+										},
+										"lastValue": {
+											"type": "number"
+										},
+										"parameter": {
+											"type": "string"
+										},
+										"displayName": {
+											"type": "string"
+										},
+										"lastUpdated": {
+											"type": "string"
+										},
+										"parameterId": {
+											"type": "integer"
+										},
+										"firstUpdated": {
+											"type": "string"
+										},
+										"manufacturers": {
+											"type": "null"
+										}
+									}
+								}
+							},
+							"sensorType": {
+								"type": "string"
+							},
+							"coordinates": {
+								"type": "object",
+								"properties": {
+									"latitude": {
+										"type": "number"
+									},
+									"longitude": {
+										"type": "number"
+									}
+								}
+							},
+							"lastUpdated": {
+								"type": "string"
+							},
+							"firstUpdated": {
+								"type": "string"
+							},
+							"measurements": {
+								"type": "integer"
+							},
+							"bounds": {
+								"type": "null"
+							},
+							"manufacturers": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}
