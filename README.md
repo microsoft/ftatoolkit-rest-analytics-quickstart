@@ -67,7 +67,7 @@ The following pipelines are available for you to test and integrate your own API
     - This will load all new data, from the current watermark until MaxDate. 
     - Please monitor this pipeline closely, as this can be a large operation. The default parameters for MinDate and MaxDate will not consume significant resources.
 - **4_OpenAQ_Metadata_Driven**: Lists sensors and runs 3_OpenAQ_Sync for each one. 
-    - The default parameters will limit the listing operation to 5 sensors. In a real-world scenario, you'd have all active sensors being listed and sync'ed.
+    - The default parameters will limit the listing operation to 20 sensors. In a real-world scenario, you'd have all active sensors being listed and sync'ed.
 - **5_OpenAQ_Cleanup_Location**: Convenience pipeline to clear metadata and parquet files for a specific sensor. Useful for testing.
 - **6_OpenAQ_Full Load**: Runs Cleanup and Sync operations in sequence for one sensor. Should rarely be used, only in case metadata gets out of sync or for testing purposes.
 
