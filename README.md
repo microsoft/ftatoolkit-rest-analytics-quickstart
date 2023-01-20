@@ -5,6 +5,11 @@ Move to Azure efficiently with customized guidance from Azure engineering. [Fast
 
 This repository contains a template Azure Synapse Analytics project designed to ingest data that is available through REST APIs.
 
+- Use GitHub Actions to deploy all the Azure resources you need to get started with API data ingestion in a matter of minutes
+- Explore the OpenAQ API and get insights from sensor data
+- Understand watermarking and metadata-driven data ingestion techniques
+- Use the templates a starting point to integrate our own APIs
+
 ## Table of contents
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
@@ -16,9 +21,16 @@ This repository contains a template Azure Synapse Analytics project designed to 
 
 ## Overview
 
-We have used the [OpenAQ API](https://docs.openaq.org/docs) as an example so you can quickly test the pipelines. The API exposes air quality data collected from multiple sensors. In this example, we will copy this data to our own Azure Data Lake and perform simple analytics and visualizations to prove out the concepts.
+Bringing data from third party APIs into a Data Lake for further processing and reporting is a very common scenario in Analytics. Azure Synapse and Data Factory pipelines contain dozens of different connectors to help you integrate these data sources, but what happens when you need to integrate a custom API, or one that does not have a built-in connector? For those cases, the REST connector can help you bring in data from virtually any REST API, without depending on a specific connector.
 
-You may also adapt this repository to collect data from any REST API of your choice, even private endpoints behind firewalls and authentication.
+In this repository, you will find tools to add a custom API and incrementally load data from it. We have used the [OpenAQ API](https://docs.openaq.org/docs) as an example so you can quickly test the pipelines. The API exposes air quality data collected from multiple sensors. In this example, we will copy this data to our own Azure Data Lake and perform simple analytics and visualizations to prove out the concepts.
+
+You may the adapt the pipelines to collect data from any REST API of your choice, even private endpoints behind firewalls and authentication.
+
+## Solution Architecture
+
+![Solution Architecture](./readme-assets/solution-architecture.drawio.png)
+
 
 ## Prerequisites
 
@@ -26,10 +38,6 @@ To execute the steps below, you will need:
 
 - An active Azure subscription
 - Contributor access to a resource group
-
-## Solution Architecture
-
-![Solution Architecture](./readme-assets/solution-architecture.drawio.png)
 
 ## Usage
 
